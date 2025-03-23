@@ -1,22 +1,287 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
-.vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-file
-*.flf
-#Test results file
-TestResults.xml
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fabrika Ürün Veri Girişi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .step {
+            margin-bottom: 20px;
+        }
+        .step h2 {
+            margin-bottom: 10px;
+        }
+        .step select, .step input {
+            padding: 10px;
+            font-size: 16px;
+            width: 100%;
+            max-width: 300px;
+            margin-bottom: 10px;
+        }
+        .step button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .data-entry {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .total-row {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .product-totals {
+            margin-top: 20px;
+        }
+        .product-totals table {
+            width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Fabrika Ürün Veri Girişi</h1>
+
+    <!-- Vardiya Seçimi -->
+    <div class="step" id="shiftStep">
+        <h2>1. Vardiyanızı Seçin</h2>
+        <select id="shiftSelect">
+            <option value="08-16">08-16</option>
+            <option value="16-24">16-24</option>
+            <option value="24-08">24-08</option>
+        </select>
+        <button onclick="selectShift()">Devam</button>
+    </div>
+
+    <!-- Ürün Seçimi -->
+    <div class="step" id="productStep" style="display: none;">
+        <h2>2. Çalıştığınız Ürünleri Seçin</h2>
+        <label><input type="checkbox" value="sbl"> SBL</label><br>
+        <label><input type="checkbox" value="mid_eu"> MID (EU)</label><br>
+        <label><input type="checkbox" value="mid_uk"> MID (UK)</label><br>
+        <label><input type="checkbox" value="low_eu"> LOW (EU)</label><br>
+        <label><input type="checkbox" value="low_uk"> LOW (UK)</label><br>
+        <label><input type="checkbox" value="j74_eu"> J74 (EU)</label><br>
+        <label><input type="checkbox" value="j74_uk"> J74 (UK)</label><br>
+        <label><input type="checkbox" value="awl"> AWL</label><br>
+        <button onclick="selectProducts()">Devam</button>
+    </div>
+
+    <!-- Veri Girişi -->
+    <div class="data-entry" id="dataEntry">
+        <h2>3. Veri Girişi Yapın</h2>
+        <p>Şu anki saat: <span id="currentHour">00:00</span></p>
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Ürün</th>
+                    <th>Yön (L/R)</th>
+                    <th>Sağlam Ürün</th>
+                    <th>Hatalı Ürün</th>
+                </tr>
+            </thead>
+            <tbody id="dataBody">
+                <!-- Ürünler buraya dinamik olarak eklenecek -->
+            </tbody>
+        </table>
+        <button onclick="addProduct()">Ürün Ekle</button>
+        <button onclick="nextHour()">Bir Sonraki Saate Geç</button>
+        <div class="result">
+            <h3>Genel Toplamlar</h3>
+            <p>Toplam Sağlam Ürün: <span id="totalSağlam">0</span></p>
+            <p>Toplam Hatalı Ürün: <span id="totalHatalı">0</span></p>
+        </div>
+        <div class="product-totals">
+            <h3>Saat Bazında Toplamlar</h3>
+            <table id="hourTotalsTable">
+                <thead>
+                    <tr>
+                        <th>Saat</th>
+                        <th>Ürün</th>
+                        <th>Yön (L/R)</th>
+                        <th>Toplam Sağlam</th>
+                        <th>Toplam Hatalı</th>
+                    </tr>
+                </thead>
+                <tbody id="hourTotalsBody">
+                    <!-- Saat bazında toplamlar buraya eklenecek -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let selectedShift = "";
+        let selectedProducts = [];
+        let hours = [];
+        let currentHourIndex = 0;
+        let allHourTotals = {}; // Tüm saat dilimlerinin toplamlarını saklar
+        let totalSağlam = 0; // Genel toplam sağlam ürün
+        let totalHatalı = 0; // Genel toplam hatalı ürün
+
+        // Vardiya seçimi
+        function selectShift() {
+            selectedShift = document.getElementById("shiftSelect").value;
+            document.getElementById("shiftStep").style.display = "none";
+            document.getElementById("productStep").style.display = "block";
+
+            // Vardiya saatlerini belirle
+            if (selectedShift === "08-16") {
+                hours = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
+            } else if (selectedShift === "16-24") {
+                hours = ["16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
+            } else if (selectedShift === "24-08") {
+                hours = ["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"];
+            }
+
+            // Şu anki saati güncelle
+            document.getElementById("currentHour").textContent = hours[currentHourIndex];
+        }
+
+        // Ürün seçimi
+        function selectProducts() {
+            selectedProducts = [];
+            document.querySelectorAll('#productStep input[type="checkbox"]:checked').forEach(checkbox => {
+                selectedProducts.push(checkbox.value);
+            });
+
+            document.getElementById("productStep").style.display = "none";
+            document.getElementById("dataEntry").style.display = "block";
+
+            // İlk saat dilimi için tabloyu oluştur
+            createTableForCurrentHour();
+        }
+
+        // Şu anki saat dilimi için tablo oluştur
+        function createTableForCurrentHour() {
+            let dataBody = document.getElementById("dataBody");
+            dataBody.innerHTML = ""; // Temizle
+
+            selectedProducts.forEach(product => {
+                ['L', 'R'].forEach(direction => {
+                    let row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${product.toUpperCase()}</td>
+                        <td>${direction}</td>
+                        <td><input type="number" class="sağlam" value="0"></td>
+                        <td><input type="number" class="hatalı" value="0"></td>
+                    `;
+                    dataBody.appendChild(row);
+                });
+            });
+        }
+
+        // Ürün ekle
+        function addProduct() {
+            let currentHour = hours[currentHourIndex];
+
+            // Şu anki saat dilimi için toplamları hesapla
+            let hourTotals = allHourTotals[currentHour] || {};
+
+            selectedProducts.forEach(product => {
+                ['L', 'R'].forEach(direction => {
+                    let sağlam = parseInt(document.querySelector(`#dataBody tr td:nth-child(3) input.sağlam`).value) || 0;
+                    let hatalı = parseInt(document.querySelector(`#dataBody tr td:nth-child(4) input.hatalı`).value) || 0;
+
+                    // Şu anki saat dilimi için toplamları güncelle
+                    if (!hourTotals[product]) {
+                        hourTotals[product] = { L: { sağlam: 0, hatalı: 0 }, R: { sağlam: 0, hatalı: 0 } };
+                    }
+                    hourTotals[product][direction].sağlam += sağlam;
+                    hourTotals[product][direction].hatalı += hatalı;
+
+                    // Genel toplamları güncelle
+                    totalSağlam += sağlam;
+                    totalHatalı += hatalı;
+                });
+            });
+
+            // Şu anki saat diliminin toplamlarını kaydet
+            allHourTotals[currentHour] = hourTotals;
+
+            // Genel toplamları güncelle
+            document.getElementById("totalSağlam").textContent = totalSağlam;
+            document.getElementById("totalHatalı").textContent = totalHatalı;
+
+            // Saat bazında toplamları göster
+            showHourTotals();
+
+            // Veri girişi alanlarını sıfırla
+            resetInputFields();
+        }
+
+        // Veri girişi alanlarını sıfırla
+        function resetInputFields() {
+            document.querySelectorAll('#dataBody input[type="number"]').forEach(input => {
+                input.value = "0";
+            });
+        }
+
+        // Saat bazında toplamları göster
+        function showHourTotals() {
+            let hourTotalsBody = document.getElementById("hourTotalsBody");
+            hourTotalsBody.innerHTML = ""; // Temizle
+
+            // Tüm saat dilimlerinin toplamlarını göster
+            for (let hour in allHourTotals) {
+                let hourTotals = allHourTotals[hour];
+                selectedProducts.forEach(product => {
+                    ['L', 'R'].forEach(direction => {
+                        let row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${hour}</td>
+                            <td>${product.toUpperCase()}</td>
+                            <td>${direction}</td>
+                            <td>${hourTotals[product][direction].sağlam}</td>
+                            <td>${hourTotals[product][direction].hatalı}</td>
+                        `;
+                        hourTotalsBody.appendChild(row);
+                    });
+                });
+            }
+        }
+
+        // Bir sonraki saate geç
+        function nextHour() {
+            if (currentHourIndex >= hours.length - 1) {
+                alert("Vardiya saatleri tamamlandı!");
+                return;
+            }
+
+            currentHourIndex++;
+            document.getElementById("currentHour").textContent = hours[currentHourIndex];
+            createTableForCurrentHour();
+        }
+    </script>
+
+</body>
+</html>
